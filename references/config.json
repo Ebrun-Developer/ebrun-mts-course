@@ -4,8 +4,11 @@
     "version": "1.0.0",
     "description": "亿邦动力马蹄社课程 Skill 配置"
   },
-  "update_url_github":"",
+  "update_url_github": "https://github.com/Ebrun-Developer/ebrun-mts-course",
   "update_url_gitee": "",
+  "todo": {
+    "update_url_gitee": "TODO: 当前尚未同步 Gitee 仓库，后续登录 Gitee 后补充对应仓库地址。"
+  },
   "check_interval_hours": 24,
   "data_source": {
     "type": "json_api",

@@ -57,55 +57,123 @@ description:
 
 ### 步骤1：识别查询意图
 
-判断用户属于哪一类查询：
+1. 读取 `references/config.json`，获取：
 
-1. 最近课程查询
-2. 月份课程表查询
+- `data_source.recent_real_api_url` - 最近课程查询
+- `data_source.monthly_real_api_url` - 月份课程表查询
 
-判断规则：
+2. 判断用户属于哪一类查询：
 
 - 如果用户提到“最近”“近期”“最新”等词，走最近课程查询
 - 如果用户提到明确月份、当月、下个月、课程表、课程安排等词，走月份课程表查询
 
-若意图不明确，但用户已经明确提到马蹄社课程，默认按最近课程查询。
+### 步骤2：频道未匹配处理
 
-### 步骤2：读取配置
+- 若意图不明确，但用户已经明确提到马蹄社课程，默认按最近课程查询。
 
-读取 `references/config.json`，获取：
+### 步骤3：执行脚本、获取数据
 
-- `_meta.version`
-- `data_source.recent_real_api_url` - 最近课程查询
-- `data_source.monthly_real_api_url` - 月份课程表查询
+#### 快速示例
 
-### 步骤3：执行脚本
-
-优先直接调用本 skill 自带脚本，不要临时自己写读取逻辑。
-
-#### 最近课程查询
+1. 最近课程查询
 
 ```bash
 python3 scripts/query_courses.py recent --json
 ```
 
-#### 月份课程表查询
+2. 月份课程表查询
 
 ```bash
 python3 scripts/query_courses.py month --month 2026-06 --json
 ```
 
-#### 相对月份查询
+优先直接调用本 skill 自带脚本，不要临时自己写读取逻辑。
+
+1. 优先使用 Python 脚本，它会自动读取 `references/config.json` 中的接口地址，并处理数据标准化和输出格式化。
+2. 如果 Python 脚本不可用，再使用 Shell 脚本
+3. 脚本默认输出 JSON；只有显式传 `--table` 时才输出文本表格
 
 ```bash
-python3 scripts/query_courses.py month --relative next --json
-python3 scripts/query_courses.py month --relative current --json
-```
+# 例：查询近期的马蹄社课程
+python3 scripts/query_courses.py recent --json
 
-如果 Python 不可用，再使用 Shell 包装脚本：
+# 例：查询2026年6月的马蹄社课程表
+python3 scripts/query_courses.py month --month 2026-06 --json
 
-```bash
+# Python不可用时的降级方案
 bash scripts/query_courses.sh recent --json
 bash scripts/query_courses.sh month --month 2026-06 --json
 ```
+
+数据结构说明：
+
+1. 最近课程查询
+- 上游 `recent_real_api_url` 原始返回就是 JSON 数组
+- `python3 scripts/query_courses.py recent --json` 也输出 JSON 数组，每一项都是标准化后的课程对象
+
+2. 月份课程表查询
+- 上游 `monthly_real_api_url` 原始数据是“按月份分组的对象”，例如：
+
+```json
+{
+  "7月": [
+    {
+      "title": "新建一个课程7月开始",
+      "url": "https://m.ebrun.com/app/demand.html?id=1913&type=3",
+      "status": "",
+      "date": "07月08日",
+      "city": "线上"
+    }
+  ],
+  "1月": [
+    {
+      "title": "北美商超爆品",
+      "url": "https://m.ebrun.com/app/demand.html?id=1880&type=3",
+      "status": "",
+      "date": "01月09日",
+      "city": "线上"
+    }
+  ]
+}
+```
+
+- 但脚本不会直接原样返回这个对象，而是会先根据目标月份提取对应数组，再输出一个带元信息的 JSON 对象：
+
+```json
+{
+  "requested_month": "2026-07",
+  "resolved_month": "2026-07",
+  "month_input_valid": true,
+  "notice": "",
+  "courses": [
+    {
+      "title": "新建一个课程7月开始",
+      "url": "https://m.ebrun.com/app/demand.html?id=1913&type=3",
+      "status": "状态待更新",
+      "date_text": "07月08日",
+      "city": "线上",
+      "summary": "未注明",
+      "month": "2026-07",
+      "tags": ""
+    }
+  ]
+}
+```
+
+- `python3 scripts/query_courses.py month --month 2026-07 --json` 当前实际输出不会直接原样返回上游对象，而是会先根据目标月份提取对应数组，再输出一个带元信息的标准化对象
+
+拿到脚本结果后：
+
+1. 最近课程查询
+- 对每条课程记录，提取 `title`, `url`, `status`, `date`, `city` 等字段
+- 生成 Markdown 前，转义 `title` / `author` / `summary` 中的 Markdown 特殊字符，并只使用可信的 HTTPS 原文链接
+- 按“步骤5：格式化输出”要求生成 Markdown
+
+2. 月份课程表查询
+- 从脚本返回对象的 `courses` 数组中，提取每条课程记录的 `title`, `url`, `status`, `date_text`, `city` 等字段
+- 生成 Markdown 前，转义 `title` / `author` / `summary` 中的 Markdown 特殊字符，并只使用可信的 HTTPS 原文链接
+- 按“步骤5：格式化输出”要求生成 Markdown
+
 
 ### 步骤4：版本更新检查
 
@@ -121,7 +189,8 @@ bash scripts/query_courses.sh month --month 2026-06 --json
    - 暂存 `update_url_github` 和 `update_url_gitee`
 5. 如果版本接口请求失败：
    - 读取 `references/config.json` 中的 `update_url_github` / `update_url_gitee`
-   - 从 GitHub / Gitee 仓库远端读取 `references/config.json`
+   - 优先从 GitHub 仓库远端读取 `references/config.json`
+   - 如果后续补充了 Gitee 地址，再把 Gitee 作为额外降级源
    - 取远端 `_meta.version` 与本地 `_meta.version` 做比对
    - 如果远端仓库中的版本号不一致，则提示更新
 6. 只有当版本接口和远端仓库版本文件都失败时，才视为“当前无法判断是否有更新”
@@ -131,7 +200,55 @@ bash scripts/query_courses.sh month --month 2026-06 --json
 
 **注意**：此步骤失败或超时不会影响主流程，仅记录状态供后续使用。
 
-## Output format 输出格式
+#### 快速示例
+
+优先直接调用更新脚本，不要临时自己写版本比较逻辑。
+
+```bash
+# 优先使用 Python 版本
+python3 scripts/update.py --json
+
+# Python 不可用时的降级方案
+bash scripts/update.sh --json
+
+# 忽略检查间隔，强制联网检查
+python3 scripts/update.py --json --force
+bash scripts/update.sh --json --force
+```
+
+脚本输出会包含以下字段：
+
+- `skill_name`
+- `current_version`
+- `latest_version`
+- `update_available`
+- `check_source`：`remote_api`、`github_config_json`、`gitee_config_json` 或 `unavailable`
+- `status`：`ok`、`cached` 或 `degraded`
+- `version_api_url`
+- `update_url_github`
+- `update_url_gitee`
+- `message`
+- `version_file_url`：仅当降级到远端仓库 `references/config.json` 检查时返回
+- `last_check_time`、`check_interval_hours`、`remaining_seconds`：仅当命中缓存结果时返回
+- `remote_check_error`、`repo_version_check_error`：仅当版本接口或远端仓库检查失败时返回
+
+默认输出为 JSON；只有显式传 `--table` 时才输出文本表格。
+
+如果 `update_available` 为 `true`，则在最终结果页脚追加更新提示。
+
+文案需要根据检查结果区分两种场景：
+
+1. 当 `status != cached` 时，表示本轮刚完成联网检查并确认有新版本
+2. 当 `status == cached` 时，表示本轮未重新检查，只是沿用上次缓存结果继续提醒
+
+更新提示要满足以下要求：
+
+- 使用短句，不要把说明、命令和长链接挤在同一行
+- 优先引导用户回复一句自然语言来触发更新
+- 链接作为次要信息放在下一行
+- 避免使用“检测到”“如需更新请回复……，或访问……”这种过长的串联句式
+
+## 步骤5：格式化输出
 
 ### 最近课程查询输出
 
@@ -140,10 +257,8 @@ bash scripts/query_courses.sh month --month 2026-06 --json
 获取时间: {current_time}
 
 [{title}]({url})
-状态：{status}
-时间：{date_text}
+时间：{date_text} | 状态：{status}
 地点：{city}
-简介：{summary}
 
 ...
 
@@ -153,12 +268,13 @@ bash scripts/query_courses.sh month --month 2026-06 --json
 ### 月份课程表输出
 
 ```markdown
+{month_notice}
+
 🗓️ 马蹄社课程表 | {month}
 获取时间: {current_time}
 
 [{title}]({url})
-状态：{status}
-时间：{date_text}
+时间：{date_text} | 状态：{status}
 地点：{city}
 
 ...
@@ -169,6 +285,8 @@ bash scripts/query_courses.sh month --month 2026-06 --json
 ### 指定月份无课程
 
 ```markdown
+{month_notice}
+
 🗓️ 马蹄社课程表 | {month}
 
 该月份当前无已记录课程。
@@ -176,20 +294,44 @@ bash scripts/query_courses.sh month --month 2026-06 --json
 更多资讯请见[亿邦官网](https://www.ebrun.com/)
 ```
 
-### 更新提示
+**追加更新提示（如检测到新版本）：**
 
-如果版本检查检测到新版本可用，在结果末尾追加：
+如果步骤4检测到新版本可用，在页脚后追加。需要根据 `status` 使用不同模板：
+
+#### 场景A：本轮刚检查到新版本（`status != cached`）
 
 ```markdown
 ---
-💡 检测到有新版本可用
-当前版本：v{current_version}
-最新版本：v{latest_version}
+### 技能更新
+发现 `ebrun-mts-course` 有新版本 `v{latest_version}`。
 
-如需更新请回复「更新」，或访问：
-- [GitHub 发布页]({github_release_url})
-- [ClawHub 发布页]({clawhub_release_url})
+回复“帮我更新 ebrun-mts-course 技能”即可开始更新。
+更新地址：[GitHub 仓库]({github_release_url})
 ```
+
+#### 场景B：本轮未重新检查，沿用缓存继续提醒（`status == cached`）
+
+```markdown
+---
+### 技能更新
+可用更新：`ebrun-mts-course v{latest_version}`。
+```
+
+#### 文案选择规则
+
+- `status != cached`：使用“发现有新版本”语气，强调这是刚检查到的结果
+- `status == cached`：使用“当前仍有可用更新”语气，强调这是延续提醒，不要伪装成刚刚检查
+- 如果只有一个可用链接，就只展示该链接，不要输出空链接占位
+- 不要在更新提示里内嵌长命令或把链接直接裸露拼接到句子中
+
+## Output format 输出格式
+
+- 格式：Markdown
+- 标题区：🎓 马蹄社近期课程 ｜ 🗓️ 马蹄社课程表 | {month}
+- 获取时间：显示当前时间
+- 课程列表：每条包含标题（带链接）、时间、状态、地点
+- 分隔线：课程之间用空行分隔
+- 页脚：链接到亿邦官网
 
 ## Failure handling 异常情况处理
 
@@ -197,16 +339,26 @@ bash scripts/query_courses.sh month --month 2026-06 --json
 |------|----------|
 | 近期课程接口不可用 | 明确告知当前暂时无法读取近期课程数据 |
 | 月份课程接口不可用 | 明确告知当前暂时无法读取月份课程数据 |
-| 最近课程不足 20 条 | 返回全部可用课程，不编造补齐 |
+| 最近课程不足 20 条 | 保持接口原顺序返回全部可用课程，不编造补齐 |
+| 月份课程数量较多 | 不人为截断，保持目标月份全部课程原顺序返回；当前业务预期单月课程量可控 |
+| 用户输入非法月份 | 自动回退到当前月份查询，并在最终结果中明确提示用户当前展示的是回退月份 |
 | 指定月份无课程 | 告知"该月份当前无已记录课程"，并附课程列表页 |
-| 字段缺失 | 缺失字段填"未注明"，不要编造 |
+| 字段缺失 | `status` 缺失时填“状态待更新”；`summary`、`city`、`date_text` 等展示字段缺失时填“未注明”，不要编造 |
 | 版本检查失败 | 静默处理，不影响课程输出 |
-| 更新地址仍是占位符 | 不请求占位符地址，只展示配置中的更新提示 |
+| Gitee 更新地址缺失 | 当前只使用 GitHub 更新地址；Gitee 待后续同步后补充 |
+| 更新地址仍是占位符 | 不请求占位符地址，只展示已配置的更新提示 |
 
-## Data files 数据文件
+## Additional resources 配套文件清单
 
-| 文件路径 | 用途 |
-|----------|------|
-| `scripts/fetch_courses.js` | 请求课程接口并输出标准化课程结果 |
-| `references/config.json` | 假接口、未来真实接口、查询规则和字段映射配置 |
-| `references/version.json` | 技能版本配置 |
+- `references/api-reference.md`
+  课程查询接口与版本检查接口说明，包含上游 JSON 结构、脚本标准化输出、错误处理与降级规则。
+- `references/config.json`
+  真实接口地址、当前版本号、GitHub 更新地址，以及后续补充 Gitee 地址的 TODO。
+- `scripts/query_courses.py`
+  课程查询主脚本。负责读取配置、请求真实接口、标准化课程字段，并输出 JSON / ASCII 表格。
+- `scripts/query_courses.sh`
+  Shell 降级脚本。依赖 `curl` 和 `jq`，可在 Python 不可用时独立完成课程查询。
+- `scripts/update.py`
+  版本检查主脚本。负责读取 `references/config.json`、检查远端版本、处理缓存，并输出 JSON / 文本结果。
+- `scripts/update.sh`
+  Shell 降级版本检查脚本。依赖 `curl` 和 `jq`，可在 Python 不可用时独立完成版本检查。
