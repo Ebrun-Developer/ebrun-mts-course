@@ -21,7 +21,7 @@
 | 推荐请求头 | `User-Agent`、`Accept`、`Referer` |
 | 响应格式 | `application/json` |
 | 顶层结构 | `array` |
-| Skill 默认读取条数 | 前 `20` 条 |
+| Skill 读取条数 | 不做人为截断，接口返回多少条就输出多少条 |
 
 ### 请求示例
 
@@ -73,7 +73,7 @@ bash scripts/query_courses.sh recent --json
 
 ### 脚本标准化输出
 
-`python3 scripts/query_courses.py recent --json` 与 `bash scripts/query_courses.sh recent --json` 输出仍是数组，但会先做标准化：
+`python3 scripts/query_courses.py recent --json` 与 `bash scripts/query_courses.sh recent --json` 输出仍是数组，但会先做标准化；不会额外截断近期课程条数。
 
 | 输出字段 | 说明 |
 |------|------|

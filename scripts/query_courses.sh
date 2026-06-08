@@ -13,7 +13,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/../references/config.json"
 WIDTH=72
 DEFAULT_TIMEOUT=10
-MAX_RECENT_RESULTS=20
 
 EXIT_USAGE_ERROR=2
 EXIT_SECURITY_ERROR=3
@@ -167,7 +166,7 @@ fetch_json() {
 
 normalize_recent_json() {
     local raw_json="$1"
-    jq -c --argjson max_results "$MAX_RECENT_RESULTS" '
+    jq -c '
         if type != "array" then
             error("近期课程顶层必须是数组")
         else
@@ -195,7 +194,6 @@ normalize_recent_json() {
                     tags: (if (.tags | type) == "array" then (.tags | join(",")) else ((.tags // "") | tostring) end)
                 }
             )
-            | .[:$max_results]
         end
     ' <<<"$raw_json"
 }

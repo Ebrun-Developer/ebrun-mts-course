@@ -67,31 +67,21 @@ description:
 - 如果用户提到“最近”“近期”“最新”等词，走最近课程查询
 - 如果用户提到明确月份、当月、下个月、课程表、课程安排等词，走月份课程表查询
 
-### 步骤2：频道未匹配处理
+### 步骤2：意图未明确处理
 
 - 若意图不明确，但用户已经明确提到马蹄社课程，默认按最近课程查询。
 
 ### 步骤3：执行脚本、获取数据
-
-#### 快速示例
-
-1. 最近课程查询
-
-```bash
-python3 scripts/query_courses.py recent --json
-```
-
-2. 月份课程表查询
-
-```bash
-python3 scripts/query_courses.py month --month 2026-06 --json
-```
 
 优先直接调用本 skill 自带脚本，不要临时自己写读取逻辑。
 
 1. 优先使用 Python 脚本，它会自动读取 `references/config.json` 中的接口地址，并处理数据标准化和输出格式化。
 2. 如果 Python 脚本不可用，再使用 Shell 脚本
 3. 脚本默认输出 JSON；只有显式传 `--table` 时才输出文本表格
+
+以下命令示例默认在当前 skill 根目录执行。
+
+#### 快速示例
 
 ```bash
 # 例：查询近期的马蹄社课程
@@ -105,11 +95,11 @@ bash scripts/query_courses.sh recent --json
 bash scripts/query_courses.sh month --month 2026-06 --json
 ```
 
-数据结构说明：
+上游接口结构：
 
 1. 最近课程查询
 - 上游 `recent_real_api_url` 原始返回就是 JSON 数组
-- `python3 scripts/query_courses.py recent --json` 也输出 JSON 数组，每一项都是标准化后的课程对象
+- 最近课程查询不做人为截断，接口返回多少条，就保留多少条
 
 2. 月份课程表查询
 - 上游 `monthly_real_api_url` 原始数据是“按月份分组的对象”，例如：
@@ -137,6 +127,13 @@ bash scripts/query_courses.sh month --month 2026-06 --json
 }
 ```
 
+脚本输出结构：
+
+1. 最近课程查询
+- `python3 scripts/query_courses.py recent --json` 输出 JSON 数组，每一项都是标准化后的课程对象
+- 最近课程查询不再限制固定条数，接口返回多少条，脚本就输出多少条
+
+2. 月份课程表查询
 - 但脚本不会直接原样返回这个对象，而是会先根据目标月份提取对应数组，再输出一个带元信息的 JSON 对象：
 
 ```json
@@ -160,12 +157,13 @@ bash scripts/query_courses.sh month --month 2026-06 --json
 }
 ```
 
-- `python3 scripts/query_courses.py month --month 2026-07 --json` 当前实际输出不会直接原样返回上游对象，而是会先根据目标月份提取对应数组，再输出一个带元信息的标准化对象
+渲染时读取字段：
 
 拿到脚本结果后：
 
 1. 最近课程查询
-- 对每条课程记录，提取 `title`, `url`, `status`, `date`, `city` 等字段
+- 对每条课程记录，提取 `title`, `url`, `status`, `date_text`, `city` 等字段
+- 如果脚本返回 N 条课程，则默认逐条渲染全部 N 条，不要擅自省略为更少条数
 - 生成 Markdown 前，转义 `title` / `author` / `summary` 中的 Markdown 特殊字符，并只使用可信的 HTTPS 原文链接
 - 按“步骤5：格式化输出”要求生成 Markdown
 
@@ -179,7 +177,7 @@ bash scripts/query_courses.sh month --month 2026-06 --json
 
 **独立执行，不影响主流程**
 
-在后台异步检查是否有新版本：
+可独立执行版本检查：
 
 1. 优先请求版本接口：`https://www.ebrun.com/_index/ClaudeCode/SkillJson/skill_version.json`
 2. 从接口返回的 JSON 对象中读取 `ebrun-mts-course` 字段，作为远端最新版本号
@@ -260,10 +258,10 @@ bash scripts/update.sh --json --force
 时间：{date_text} | 状态：{status}
 地点：{city}
 
-...
-
 更多资讯请见[亿邦官网](https://www.ebrun.com/)
 ```
+
+以上格式需要对脚本返回的每一条课程重复一次，直到全部课程渲染完成；不要用省略号替代未展示的课程。
 
 ### 月份课程表输出
 
@@ -306,7 +304,7 @@ bash scripts/update.sh --json --force
 发现 `ebrun-mts-course` 有新版本 `v{latest_version}`。
 
 回复“帮我更新 ebrun-mts-course 技能”即可开始更新。
-更新地址：[GitHub 仓库]({github_release_url})
+更新地址：[GitHub 仓库]({update_url_github})
 ```
 
 #### 场景B：本轮未重新检查，沿用缓存继续提醒（`status == cached`）
@@ -339,7 +337,7 @@ bash scripts/update.sh --json --force
 |------|----------|
 | 近期课程接口不可用 | 明确告知当前暂时无法读取近期课程数据 |
 | 月份课程接口不可用 | 明确告知当前暂时无法读取月份课程数据 |
-| 最近课程不足 20 条 | 保持接口原顺序返回全部可用课程，不编造补齐 |
+| 最近课程返回任意条数 | 保持接口原顺序返回并渲染全部可用课程，不编造补齐，也不擅自截断 |
 | 月份课程数量较多 | 不人为截断，保持目标月份全部课程原顺序返回；当前业务预期单月课程量可控 |
 | 用户输入非法月份 | 自动回退到当前月份查询，并在最终结果中明确提示用户当前展示的是回退月份 |
 | 指定月份无课程 | 告知"该月份当前无已记录课程"，并附课程列表页 |

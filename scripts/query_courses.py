@@ -24,7 +24,6 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 
 CONFIG_FILE = Path(__file__).resolve().parent.parent / "references" / "config.json"
-MAX_RECENT_RESULTS = 20
 MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 ALLOWED_DOMAINS = ["www.ebrun.com", "api.ebrun.com"]
 DEFAULT_TIMEOUT = 10
@@ -190,8 +189,7 @@ def get_recent_courses() -> List[Dict[str, str]]:
     if not isinstance(data, list):
         raise CourseQueryError("接口返回格式异常: 近期课程顶层必须是数组", 7)
 
-    courses = [normalize_course(item) for item in data]
-    return courses[:MAX_RECENT_RESULTS]
+    return [normalize_course(item) for item in data]
 
 
 def resolve_relative_month(relative: str, now: datetime) -> str:
