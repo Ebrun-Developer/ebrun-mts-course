@@ -27,11 +27,11 @@ python3 scripts/query_courses.py recent --json
 获取时间: 2026-06-08 15:00:00
 
 [课程标题 A](https://m.ebrun.com/app/demand.html?id=1914&type=3)
-时间：07/07 00:00 | 状态：立即报名
+时间：07/07 00:00 | 状态：正在报名
 地点：线上
 
 [课程标题 B](https://m.ebrun.com/app/demand.html?id=1913&type=3)
-时间：07/08 00:00 | 状态：立即报名
+时间：07/08 00:00 | 状态：正在报名
 地点：线上
 
 更多资讯请见[亿邦官网](https://www.ebrun.com/)

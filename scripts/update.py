@@ -18,9 +18,20 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
+from urllib.parse import urlparse
+
+try:
+    from coze_workload_identity import requests as workload_requests
+except ImportError:
+    workload_requests = None
+
+try:
+    import requests as standard_requests
+except ImportError:
+    standard_requests = None
+
 from urllib import request
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
 
 SKILL_NAME = "ebrun-mts-course"
 CONFIG_FILE = Path(__file__).resolve().parent.parent / "references" / "config.json"
@@ -55,6 +66,16 @@ class UpdateCheckError(Exception):
     def __init__(self, message: str, exit_code: int):
         super().__init__(message)
         self.exit_code = exit_code
+
+
+class HTTPStatusError(Exception):
+    def __init__(self, status_code: int):
+        super().__init__(f"HTTP {status_code}")
+        self.status_code = status_code
+
+
+class NetworkRequestError(Exception):
+    pass
 
 
 def print_error(message: str) -> None:
@@ -246,26 +267,73 @@ def map_network_error(error: BaseException) -> UpdateCheckError:
     return UpdateCheckError(f"版本接口请求失败: {error}", EXIT_REQUEST_ERROR)
 
 
+def fetch_json_with_requests_client(client: Any, url: str, timeout: int) -> Dict[str, Any]:
+    try:
+        response = client.get(url, headers=HEADERS, timeout=timeout)
+    except Exception as error:
+        raise NetworkRequestError(str(error)) from error
+
+    status_code = int(getattr(response, "status_code", 0) or 0)
+    if status_code != 200:
+        raise HTTPStatusError(status_code)
+
+    try:
+        data = response.json()
+    except Exception:
+        try:
+            data = json.loads(getattr(response, "text", ""))
+        except json.JSONDecodeError as error:
+            raise UpdateCheckError(f"版本接口 JSON 解析失败: {error}", EXIT_JSON_ERROR) from error
+
+    if not isinstance(data, dict):
+        raise UpdateCheckError("版本接口格式异常: 顶层必须是对象", EXIT_JSON_ERROR)
+    return data
+
+
+def fetch_json_with_urllib(url: str, timeout: int) -> Dict[str, Any]:
+    try:
+        req = request.Request(url, headers=HEADERS)
+        with request.urlopen(req, timeout=timeout) as response:
+            content = response.read().decode("utf-8")
+            data = json.loads(content)
+            if not isinstance(data, dict):
+                raise UpdateCheckError("版本接口格式异常: 顶层必须是对象", EXIT_JSON_ERROR)
+            return data
+    except HTTPError as error:
+        raise HTTPStatusError(error.code) from error
+    except json.JSONDecodeError as error:
+        raise UpdateCheckError(f"版本接口 JSON 解析失败: {error}", EXIT_JSON_ERROR) from error
+    except (URLError, TimeoutError, socket.timeout) as error:
+        raise error
+
+
+def fetch_json_once(url: str, timeout: int) -> Dict[str, Any]:
+    if workload_requests is not None:
+        return fetch_json_with_requests_client(workload_requests, url, timeout)
+    if standard_requests is not None:
+        return fetch_json_with_requests_client(standard_requests, url, timeout)
+    return fetch_json_with_urllib(url, timeout)
+
+
 def fetch_json(url: str, timeout: int, retries: int) -> Dict[str, Any]:
     validate_url(url, "--version-url")
     last_error: Optional[UpdateCheckError] = None
 
     for attempt in range(1, retries + 1):
         try:
-            req = request.Request(url, headers=HEADERS)
-            with request.urlopen(req, timeout=timeout) as response:
-                content = response.read().decode("utf-8")
-                data = json.loads(content)
-                if not isinstance(data, dict):
-                    raise UpdateCheckError("版本接口格式异常: 顶层必须是对象", EXIT_JSON_ERROR)
-                return data
-        except HTTPError as error:
-            last_error = map_http_error(error)
-            if not should_retry_http(error.code) or attempt >= retries:
+            return fetch_json_once(url, timeout)
+        except HTTPStatusError as error:
+            last_error = map_http_error(HTTPError(url, error.status_code, str(error), None, None))
+            if not should_retry_http(error.status_code) or attempt >= retries:
                 raise last_error
             print_warning(f"{last_error}. 第 {attempt} 次请求失败，准备重试...")
         except json.JSONDecodeError as error:
             raise UpdateCheckError(f"版本接口 JSON 解析失败: {error}", EXIT_JSON_ERROR) from error
+        except NetworkRequestError as error:
+            last_error = map_network_error(error)
+            if attempt >= retries:
+                raise last_error
+            print_warning(f"{last_error}. 第 {attempt} 次请求失败，准备重试...")
         except (URLError, TimeoutError, socket.timeout) as error:
             last_error = map_network_error(error)
             if not should_retry_network(error) or attempt >= retries:

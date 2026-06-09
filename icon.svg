@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title>ebrun-mts-course icon</title>
+  <desc>Course calendar icon for the Ebrun MTS course skill.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#155e75"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#bg)"/>
+  <rect x="28" y="34" width="72" height="58" rx="10" fill="#ffffff" opacity="0.96"/>
+  <rect x="28" y="34" width="72" height="14" rx="10" fill="#f59e0b"/>
+  <circle cx="46" cy="62" r="6" fill="#0f766e"/>
+  <path d="M58 62h24" stroke="#0f766e" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="46" cy="80" r="6" fill="#0f766e"/>
+  <path d="M58 80h16" stroke="#0f766e" stroke-width="6" stroke-linecap="round"/>
+  <path d="M44 22v18M84 22v18" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+</svg>

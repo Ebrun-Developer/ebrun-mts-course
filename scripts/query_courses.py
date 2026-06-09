@@ -19,9 +19,20 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+from urllib.parse import urlparse
+
+try:
+    from coze_workload_identity import requests as workload_requests
+except ImportError:
+    workload_requests = None
+
+try:
+    import requests as standard_requests
+except ImportError:
+    standard_requests = None
+
 from urllib import request
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
 
 CONFIG_FILE = Path(__file__).resolve().parent.parent / "references" / "config.json"
 MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
@@ -42,6 +53,16 @@ class CourseQueryError(Exception):
         self.exit_code = exit_code
 
 
+class HTTPStatusError(Exception):
+    def __init__(self, status_code: int):
+        super().__init__(f"HTTP {status_code}")
+        self.status_code = status_code
+
+
+class NetworkRequestError(Exception):
+    pass
+
+
 def read_json(path: Path) -> Dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -59,6 +80,15 @@ def normalize_text(value: Any) -> str:
     if value is None:
         return ""
     return " ".join(str(value).replace("\r", " ").replace("\n", " ").split())
+
+
+def normalize_status(value: Any) -> str:
+    normalized = normalize_text(value)
+    if not normalized:
+        return "状态待更新"
+    if normalized == "立即报名":
+        return "正在报名"
+    return normalized
 
 
 def is_safe_url(url: str) -> bool:
@@ -125,28 +155,70 @@ def should_retry_network(error: BaseException) -> bool:
     return False
 
 
+def fetch_json_with_requests_client(client: Any, url: str, timeout: int) -> Any:
+    try:
+        response = client.get(url, headers=HEADERS, timeout=timeout)
+    except Exception as error:
+        raise NetworkRequestError(str(error)) from error
+
+    status_code = int(getattr(response, "status_code", 0) or 0)
+    if status_code != 200:
+        raise HTTPStatusError(status_code)
+
+    try:
+        return response.json()
+    except Exception:
+        try:
+            return json.loads(getattr(response, "text", ""))
+        except json.JSONDecodeError as error:
+            raise CourseQueryError(f"JSON 解析失败: {error}", 7) from error
+
+
+def fetch_json_with_urllib(url: str, timeout: int) -> Any:
+    try:
+        req = request.Request(url, headers=HEADERS)
+        with request.urlopen(req, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        raise HTTPStatusError(error.code) from error
+    except json.JSONDecodeError as error:
+        raise CourseQueryError(f"JSON 解析失败: {error}", 7) from error
+    except (URLError, TimeoutError, socket.timeout) as error:
+        raise error
+
+
+def fetch_json_once(url: str, timeout: int) -> Any:
+    if workload_requests is not None:
+        return fetch_json_with_requests_client(workload_requests, url, timeout)
+    if standard_requests is not None:
+        return fetch_json_with_requests_client(standard_requests, url, timeout)
+    return fetch_json_with_urllib(url, timeout)
+
+
 def fetch_json(url: str, timeout: int = DEFAULT_TIMEOUT, retries: int = DEFAULT_RETRIES) -> Any:
     last_error = None  # type: Optional[CourseQueryError]
 
     for attempt in range(1, retries + 1):
         try:
-            req = request.Request(url, headers=HEADERS)
-            with request.urlopen(req, timeout=timeout) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except HTTPError as error:
-            if error.code == 403:
+            return fetch_json_once(url, timeout)
+        except HTTPStatusError as error:
+            if error.status_code == 403:
                 last_error = CourseQueryError("请求被拒绝: HTTP 403", 6)
-            elif error.code == 404:
+            elif error.status_code == 404:
                 last_error = CourseQueryError("资源不存在: HTTP 404", 5)
-            elif error.code == 503:
+            elif error.status_code == 503:
                 last_error = CourseQueryError("服务暂时不可用: HTTP 503，可稍后重试", 4)
             else:
-                last_error = CourseQueryError(f"请求失败: HTTP {error.code}", 4)
+                last_error = CourseQueryError(f"请求失败: HTTP {error.status_code}", 4)
 
-            if not should_retry_http(error.code) or attempt >= retries:
+            if not should_retry_http(error.status_code) or attempt >= retries:
                 raise last_error
         except json.JSONDecodeError as error:
             raise CourseQueryError(f"JSON 解析失败: {error}", 7) from error
+        except NetworkRequestError as error:
+            last_error = CourseQueryError(f"网络请求失败: {error}", 4)
+            if attempt >= retries:
+                raise last_error
         except (URLError, TimeoutError, socket.timeout) as error:
             reason = getattr(error, "reason", error)
             if should_retry_network(error):
@@ -173,7 +245,7 @@ def normalize_course(item: Any, month: str = "") -> Dict[str, str]:
     return {
         "title": normalize_text(item.get("title")) or "未注明",
         "url": normalize_text(item.get("url")),
-        "status": normalize_text(item.get("status")) or "状态待更新",
+        "status": normalize_status(item.get("status")),
         "date_text": normalize_text(item.get("date_text") or item.get("date")) or "未注明",
         "city": normalize_text(item.get("city")) or "未注明",
         "summary": normalize_text(item.get("summary")) or "未注明",

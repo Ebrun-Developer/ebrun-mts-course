@@ -79,7 +79,7 @@ bash scripts/query_courses.sh recent --json
 |------|------|
 | `title` | 标题；缺失时填 `未注明` |
 | `url` | 原始链接文本 |
-| `status` | 状态；缺失时填 `状态待更新` |
+| `status` | 状态；缺失时填 `状态待更新`；原始值为 `立即报名` 时统一映射为 `正在报名` |
 | `date_text` | 优先读取 `date_text`，否则回退到 `date` |
 | `city` | 地点；缺失时填 `未注明` |
 | `summary` | 摘要；当前课程接口通常没有该字段，脚本会填 `未注明` |
@@ -182,7 +182,7 @@ bash scripts/query_courses.sh month --month 2026-07 --json
 |------|------|
 | `title` | 标题；缺失时填 `未注明` |
 | `url` | 原始链接文本 |
-| `status` | 状态；为空时填 `状态待更新` |
+| `status` | 状态；为空时填 `状态待更新`；原始值为 `立即报名` 时统一映射为 `正在报名` |
 | `date_text` | 优先读取 `date_text`，否则回退到 `date` |
 | `city` | 地点；缺失时填 `未注明` |
 | `summary` | 摘要；当前课程接口通常没有该字段，脚本会填 `未注明` |

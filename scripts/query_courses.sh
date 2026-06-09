@@ -176,7 +176,7 @@ normalize_recent_json() {
                     url: ((.url // "") | tostring | gsub("[\r\n\t]"; " ") | split(" ") | map(select(length > 0)) | join(" ")),
                     status: (
                         ((.status // "") | tostring | gsub("[\r\n\t]"; " ") | split(" ") | map(select(length > 0)) | join(" "))
-                        | if . == "" then "状态待更新" else . end
+                        | if . == "" then "状态待更新" elif . == "立即报名" then "正在报名" else . end
                     ),
                     date_text: (
                         (((.date_text // .date // "") | tostring | gsub("[\r\n\t]"; " ") | split(" ") | map(select(length > 0)) | join(" ")))
@@ -218,7 +218,7 @@ normalize_month_json() {
                     url: ((.url // "") | tostring | gsub("[\r\n\t]"; " ") | split(" ") | map(select(length > 0)) | join(" ")),
                     status: (
                         ((.status // "") | tostring | gsub("[\r\n\t]"; " ") | split(" ") | map(select(length > 0)) | join(" "))
-                        | if . == "" then "状态待更新" else . end
+                        | if . == "" then "状态待更新" elif . == "立即报名" then "正在报名" else . end
                     ),
                     date_text: (
                         (((.date_text // .date // "") | tostring | gsub("[\r\n\t]"; " ") | split(" ") | map(select(length > 0)) | join(" ")))
