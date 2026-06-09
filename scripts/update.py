@@ -17,7 +17,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Set
 from urllib import request
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -306,7 +306,7 @@ def parse_repo_url(repo_url: str) -> Optional[Dict[str, str]]:
     return None
 
 
-def build_repo_config_file_urls(repo_url: str) -> list[str]:
+def build_repo_config_file_urls(repo_url: str) -> List[str]:
     repo_info = parse_repo_url(repo_url)
     if not repo_info:
         return []
@@ -314,7 +314,7 @@ def build_repo_config_file_urls(repo_url: str) -> list[str]:
     owner = repo_info["owner"]
     repo = repo_info["repo"]
     branches = ["main", "master"]
-    candidates: list[str] = []
+    candidates = []  # type: List[str]
 
     if repo_info["provider"] == "github":
         candidates.extend(
@@ -331,8 +331,8 @@ def build_repo_config_file_urls(repo_url: str) -> list[str]:
             ]
         )
 
-    seen: set[str] = set()
-    ordered: list[str] = []
+    seen = set()  # type: Set[str]
+    ordered = []  # type: List[str]
     for candidate in candidates:
         if candidate not in seen:
             seen.add(candidate)
@@ -345,7 +345,7 @@ def fetch_repo_version_info(local_info: Dict[str, Any], timeout: int, retries: i
         ("github_config_json", str(local_info.get("update_url_github", "")).strip()),
         ("gitee_config_json", str(local_info.get("update_url_gitee", "")).strip()),
     ]
-    errors: list[str] = []
+    errors = []  # type: List[str]
 
     for source_name, repo_url in repo_sources:
         if not repo_url:

@@ -18,7 +18,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 from urllib import request
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -126,7 +126,7 @@ def should_retry_network(error: BaseException) -> bool:
 
 
 def fetch_json(url: str, timeout: int = DEFAULT_TIMEOUT, retries: int = DEFAULT_RETRIES) -> Any:
-    last_error: CourseQueryError | None = None
+    last_error = None  # type: Optional[CourseQueryError]
 
     for attempt in range(1, retries + 1):
         try:
@@ -218,7 +218,7 @@ def validate_month(month: str) -> str:
     return normalized
 
 
-def resolve_month_input(month: str, now: datetime) -> Dict[str, str | bool]:
+def resolve_month_input(month: str, now: datetime) -> Dict[str, Union[str, bool]]:
     normalized = normalize_text(month)
     fallback_month = current_month(now)
 
@@ -288,7 +288,8 @@ def print_table(title: str, data: List[Dict[str, str]]) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="查询马蹄社课程真实接口数据")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command")
+    subparsers.required = True
 
     recent_parser = subparsers.add_parser("recent", help="查询最近课程")
     recent_output = recent_parser.add_mutually_exclusive_group()

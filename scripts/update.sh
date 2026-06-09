@@ -106,7 +106,7 @@ read_local_config() {
 
     local interval_hours
     interval_hours=$(jq -r '.check_interval_hours // empty' "$CONFIG_FILE")
-    if [ -z "$interval_hours" ] || ! [[ "$interval_hours" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    if [ -z "$interval_hours" ] || ! jq -e '(.check_interval_hours | type == "number") and (.check_interval_hours > 0)' "$CONFIG_FILE" >/dev/null 2>&1; then
         log_error "本地 config.json 中 check_interval_hours 必须大于 0"
         exit "$EXIT_JSON_ERROR"
     fi

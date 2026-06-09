@@ -62,6 +62,8 @@ ebrun-mts-course/
 
 优先使用内置脚本，而不是在外部重复编写请求逻辑。
 
+Python 脚本当前兼容 `Python 3.6+`。如果环境里没有可用的 Python 3，或 `python3` 实际版本低于 3.6，建议直接使用同目录下的 Shell 降级脚本。
+
 以下命令示例默认在当前 skill 根目录执行。
 
 ```bash
@@ -74,7 +76,7 @@ python3 scripts/query_courses.py month --month 2026-07 --json
 # 查询当前月份课程表
 python3 scripts/query_courses.py month --relative current --json
 
-# Python 不可用时使用 Shell 版本
+# Python 不可用或版本低于 3.6 时使用 Shell 版本
 bash scripts/query_courses.sh recent --json
 ```
 
@@ -86,6 +88,9 @@ python3 scripts/update.py --json
 
 # 强制忽略检查间隔
 python3 scripts/update.py --json --force
+
+# Python 不可用或版本低于 3.6 时使用 Shell 版本
+bash scripts/update.sh --json
 ```
 
 ### 输出说明

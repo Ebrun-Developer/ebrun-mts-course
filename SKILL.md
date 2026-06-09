@@ -76,7 +76,7 @@ description:
 优先直接调用本 skill 自带脚本，不要临时自己写读取逻辑。
 
 1. 优先使用 Python 脚本，它会自动读取 `references/config.json` 中的接口地址，并处理数据标准化和输出格式化。
-2. 如果 Python 脚本不可用，再使用 Shell 脚本
+2. Python 脚本当前兼容 `Python 3.6+`；如果环境里没有可用的 Python 3，或版本低于 3.6，再使用 Shell 脚本
 3. 脚本默认输出 JSON；只有显式传 `--table` 时才输出文本表格
 
 以下命令示例默认在当前 skill 根目录执行。
@@ -90,7 +90,7 @@ python3 scripts/query_courses.py recent --json
 # 例：查询2026年6月的马蹄社课程表
 python3 scripts/query_courses.py month --month 2026-06 --json
 
-# Python不可用时的降级方案
+# Python 不可用或版本低于 3.6 时的降级方案
 bash scripts/query_courses.sh recent --json
 bash scripts/query_courses.sh month --month 2026-06 --json
 ```
@@ -206,7 +206,7 @@ bash scripts/query_courses.sh month --month 2026-06 --json
 # 优先使用 Python 版本
 python3 scripts/update.py --json
 
-# Python 不可用时的降级方案
+# Python 不可用或版本低于 3.6 时的降级方案
 bash scripts/update.sh --json
 
 # 忽略检查间隔，强制联网检查
