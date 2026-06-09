@@ -11,6 +11,7 @@ ebrun-mts-course - 检查 Skill 版本更新
 """
 
 import argparse
+import importlib
 import json
 import socket
 import sys
@@ -19,16 +20,6 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 from urllib.parse import urlparse
-
-try:
-    from coze_workload_identity import requests as workload_requests
-except ImportError:
-    workload_requests = None
-
-try:
-    import requests as standard_requests
-except ImportError:
-    standard_requests = None
 
 from urllib import request
 from urllib.error import HTTPError, URLError
@@ -76,6 +67,15 @@ class HTTPStatusError(Exception):
 
 class NetworkRequestError(Exception):
     pass
+
+
+def get_requests_client() -> Optional[Any]:
+    for module_name in ("coze_workload_identity.requests", "requests"):
+        try:
+            return importlib.import_module(module_name)
+        except ImportError:
+            continue
+    return None
 
 
 def print_error(message: str) -> None:
@@ -248,14 +248,14 @@ def should_retry_network(error: BaseException) -> bool:
     return False
 
 
-def map_http_error(error: HTTPError) -> UpdateCheckError:
-    if error.code == 403:
+def map_http_status_error(status_code: int) -> UpdateCheckError:
+    if status_code == 403:
         return UpdateCheckError("版本接口请求被拒绝: HTTP 403", EXIT_FORBIDDEN)
-    if error.code == 404:
+    if status_code == 404:
         return UpdateCheckError("版本接口不存在: HTTP 404", EXIT_NOT_FOUND)
-    if error.code == 503:
+    if status_code == 503:
         return UpdateCheckError("版本接口暂时不可用: HTTP 503，可稍后重试", EXIT_REQUEST_ERROR)
-    return UpdateCheckError(f"版本接口请求失败: HTTP {error.code}", EXIT_REQUEST_ERROR)
+    return UpdateCheckError(f"版本接口请求失败: HTTP {status_code}", EXIT_REQUEST_ERROR)
 
 
 def map_network_error(error: BaseException) -> UpdateCheckError:
@@ -308,10 +308,9 @@ def fetch_json_with_urllib(url: str, timeout: int) -> Dict[str, Any]:
 
 
 def fetch_json_once(url: str, timeout: int) -> Dict[str, Any]:
-    if workload_requests is not None:
-        return fetch_json_with_requests_client(workload_requests, url, timeout)
-    if standard_requests is not None:
-        return fetch_json_with_requests_client(standard_requests, url, timeout)
+    requests_client = get_requests_client()
+    if requests_client is not None:
+        return fetch_json_with_requests_client(requests_client, url, timeout)
     return fetch_json_with_urllib(url, timeout)
 
 
@@ -323,7 +322,7 @@ def fetch_json(url: str, timeout: int, retries: int) -> Dict[str, Any]:
         try:
             return fetch_json_once(url, timeout)
         except HTTPStatusError as error:
-            last_error = map_http_error(HTTPError(url, error.status_code, str(error), None, None))
+            last_error = map_http_status_error(error.status_code)
             if not should_retry_http(error.status_code) or attempt >= retries:
                 raise last_error
             print_warning(f"{last_error}. 第 {attempt} 次请求失败，准备重试...")

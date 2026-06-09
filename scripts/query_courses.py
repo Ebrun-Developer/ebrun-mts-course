@@ -11,6 +11,7 @@ ebrun-mts-course - 查询马蹄社近期课程和月份课程表
 """
 
 import argparse
+import importlib
 import json
 import re
 import socket
@@ -20,16 +21,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
-
-try:
-    from coze_workload_identity import requests as workload_requests
-except ImportError:
-    workload_requests = None
-
-try:
-    import requests as standard_requests
-except ImportError:
-    standard_requests = None
 
 from urllib import request
 from urllib.error import HTTPError, URLError
@@ -61,6 +52,15 @@ class HTTPStatusError(Exception):
 
 class NetworkRequestError(Exception):
     pass
+
+
+def get_requests_client() -> Optional[Any]:
+    for module_name in ("coze_workload_identity.requests", "requests"):
+        try:
+            return importlib.import_module(module_name)
+        except ImportError:
+            continue
+    return None
 
 
 def read_json(path: Path) -> Dict[str, Any]:
@@ -188,10 +188,9 @@ def fetch_json_with_urllib(url: str, timeout: int) -> Any:
 
 
 def fetch_json_once(url: str, timeout: int) -> Any:
-    if workload_requests is not None:
-        return fetch_json_with_requests_client(workload_requests, url, timeout)
-    if standard_requests is not None:
-        return fetch_json_with_requests_client(standard_requests, url, timeout)
+    requests_client = get_requests_client()
+    if requests_client is not None:
+        return fetch_json_with_requests_client(requests_client, url, timeout)
     return fetch_json_with_urllib(url, timeout)
 
 
