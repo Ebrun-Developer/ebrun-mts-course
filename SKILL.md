@@ -258,7 +258,7 @@ bash scripts/update.sh --json --force
 时间：{date_text} | 状态：{status}
 地点：{city}
 
-更多资讯请见[亿邦官网](https://www.ebrun.com/)
+更多课程请见[亿邦官网](https://www.ebrun.com/conference/all-ebs.html)
 ```
 
 以上格式需要对脚本返回的每一条课程重复一次，直到全部课程渲染完成；不要用省略号替代未展示的课程。
@@ -277,7 +277,7 @@ bash scripts/update.sh --json --force
 
 ...
 
-更多资讯请见[亿邦官网](https://www.ebrun.com/)
+更多课程请见[亿邦官网](https://www.ebrun.com/conference/all-ebs.html)
 ```
 
 ### 指定月份无课程
@@ -289,7 +289,7 @@ bash scripts/update.sh --json --force
 
 该月份当前无已记录课程。
 
-更多资讯请见[亿邦官网](https://www.ebrun.com/)
+更多课程请见[亿邦官网](https://www.ebrun.com/conference/all-ebs.html)
 ```
 
 **追加更新提示（如检测到新版本）：**
